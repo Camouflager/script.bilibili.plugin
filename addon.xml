@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<addon id="script.bilibili.plugin" name="Bilibili Plugin" version="1.0.2" provider-name="Camouflager">
+	<requires>
+    <import addon="script.module.requests" version="2.27.1" />
+	</requires>
+	<extension point="xbmc.python.script" library="addon.py">
+		<provides>executable</provides>
+	</extension>
+	<extension point="xbmc.addon.metadata">
+		<platform>all</platform>
+		<summary lang="en">Search and watch Bilibili videos.</summary>
+		<license>GNU General Public License, v2</license>
+		<language />
+		<source>https://github.com/camouflager/script.bilibili.plugin</source>
+		<assets>
+		</assets>
+	</extension>
+</addon>
