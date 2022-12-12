@@ -9,20 +9,9 @@ import xbmcaddon
 
 class Common:
     @staticmethod
-    def selectVideo(videos: List[WebSearchVideo], init=True, title="Search Result", prevPage: str = None, nextPage: str = None, initSelect=None, onSelect: Callable[[int], None] = None):  # type: ignore
+    def selectVideo(videos: List[WebSearchVideo], title="Search Result", prevPage: str = None, nextPage: str = None, initSelect=None, onSelect: Callable[[int], None] = None):  # type: ignore
         def markup(txt: str) -> str:
             return txt.replace('<em class="keyword">', '[COLOR red]').replace('</em>', '[/COLOR]').replace('&amp;', '&')
-
-        xbmc.log("before select ", xbmc.LOGERROR)
-
-        if not init:
-            pass
-            # Kodi seems to be closing a dialog when coming back from playback by itself (it's reinitializing homepage)
-            # We place a dialog here to prevent the selection dialog from being closed by it
-            #  xbmcgui.Dialog().ok('', 'Playback Complete')
-
-            # This doesn't work
-            #  xbmcgui.Dialog().notification('', 'Playback Complete')
 
         selections: List[str] = []
         selections.extend([prevPage])
@@ -31,8 +20,6 @@ class Common:
         selections = [x for x in selections if x is not None]
 
         index = xbmcgui.Dialog().select(title, selections, preselect=initSelect if initSelect is not None else -1)  # type:ignore
-
-        xbmc.log("new select " + str(index), xbmc.LOGERROR)
 
         if index < 0:
             return "fin"
@@ -91,7 +78,7 @@ class Common:
             if videos is None:
                 raise Exception('getVideos failed')
 
-            ret = Common.selectVideo(videos, init=i == 0, title=title,
+            ret = Common.selectVideo(videos, title=title,
                                      prevPage=None if curPage == 1 else '<< Last Page',  # type:ignore
                                      nextPage=None if curPage >= 10 or len(videos) == 0 else '>> Next Page',  # type:ignore
                                      initSelect=preselect, onSelect=resetPreselect)
@@ -99,9 +86,11 @@ class Common:
             if ret == 'prevPage':
                 curPage -= 1
                 needsUpdate = True
+                preselect = None
             elif ret == 'nextPage':
                 curPage += 1
                 needsUpdate = True
+                preselect = None
 
             i += 1
 
@@ -163,11 +152,12 @@ class Common:
             if ret == 'select':
                 return ("select", selections[cast(int, arg)])
 
-            if ret == 'prevPage':
-                curPage -= 1
-                needsUpdate = True
-            elif ret == 'nextPage':
-                curPage += 1
+            if ret == 'prevPage' or ret == 'nextPage':
+                if ret == 'prevPage':
+                    curPage -= 1
+                else:
+                    curPage += 1
+                preselect = -1
                 needsUpdate = True
 
             i += 1
@@ -259,7 +249,7 @@ class RecentHistory:
                 xbmcgui.Dialog().ok('', 'Empty History')
                 return 'fin'
 
-            ret = Common.selectVideo(historyVideos, init=(i == 0), title="History")
+            ret = Common.selectVideo(historyVideos, title="History")
             i += 1
             if ret == 'fin':
                 return ret
@@ -299,7 +289,16 @@ class SearchUser:
 def playVideo(path):
     player = xbmc.Player()
 
-    player.play(path)
+    HEADER = 'User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.122 Safari/537.36' \
+        + '&Referer=https://www.bilibili.com' \
+        + '&Range=bytes=0-' \
+        + '&Connection=keep-alive'\
+        + '&Origin=https://www.bilibili.com' \
+        + '&Accept-Encoding=gzip, deflate, br'
+
+    player.play(path + '|' + HEADER)
+
+    #  player.play(path)
 
     while not player.isPlaying():
         xbmc.sleep(200)

@@ -1,6 +1,8 @@
-from typing import List, TypedDict, cast
+from typing import List, TypedDict, cast, Optional
 import uuid
-import re
+import os
+import xbmc
+import xbmcaddon
 import json
 import requests
 from api import API
@@ -93,20 +95,37 @@ class Api:
         params = {
             "avid": aid,
             "cid": cid,
-            "qn": 127,
+            "qn": 80,
             "otype": "json",
-            "fnval": 4048,
-            "fourk": 1,
-            "platform": "html5",
+            "fnval": 0,
+            "fourk": 0,
+            #  "platform": "html5",
         }
 
-        resp = request('GET', playurl, params)
+        resp = request('GET', playurl, params, tryGetCredentials())
 
         if resp:
+            #  import xbmcgui
+            #  xbmcgui.Dialog().textviewer('', str(resp))
             return cast(str, resp['durl'][0]['url'])
 
 
-def request(method: str, url: str, params: dict):
+class Credentials(TypedDict):
+    BILI_JCT: str
+    BUVID3: str
+    SESSDATA: str
+
+
+def tryGetCredentials() -> Optional[Credentials]:
+    profile = xbmc.translatePath(xbmcaddon.Addon().getAddonInfo('profile'))  # .decode("utf-8")
+    path = os.path.join(profile, 'credentials.json')
+    if os.path.exists(path):
+        f = open(path, 'r')
+        return json.load(f)
+    return None
+
+
+def request(method: str, url: str, params: dict, credentials: Optional[Credentials] = None):
     method = method.upper()
 
     # 使用 Referer 和 UA 请求头以绕过反爬虫机制
@@ -120,9 +139,9 @@ def request(method: str, url: str, params: dict):
         params = {}
 
     cookies = {
-        "SESSDATA": None,
-        "buvid3": str(uuid.uuid1()) + "infoc",
-        "bili_jct": None,
+        "SESSDATA": credentials.get('SESSDATA', None) if credentials else None,
+        "buvid3": str(uuid.uuid1()) + "infoc" if not credentials else credentials["BUVID3"],
+        "bili_jct": credentials.get('BILI_JCT', None) if credentials else None,
         "DedeUserID": None,
     }
     cookies["buvid3"] = str(uuid.uuid1())

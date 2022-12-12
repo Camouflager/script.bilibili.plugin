@@ -39,8 +39,8 @@ def main():
 
 try:
     main()
-#  except UserException as e:
-#      xbmcgui.Dialog().ok('err', str(e))
+except UserException as e:
+    xbmcgui.Dialog().ok('err', str(e))
 except Exception as e:
     st = traceback.format_exc()
     xbmc.log('exception: ' + str(st), xbmc.LOGERROR)
