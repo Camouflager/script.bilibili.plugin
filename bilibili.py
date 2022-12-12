@@ -86,7 +86,7 @@ class Api:
         return cast(VideoDetail, request("GET", detailUrl, params=params))
 
     @staticmethod
-    def videoHtml5Url(videoDetail: VideoDetail):
+    def videoHtml5Url(videoDetail: VideoDetail, qn: int = 32):
         aid = videoDetail['aid']
         cid = videoDetail['pages'][0]['cid']
 
@@ -95,10 +95,10 @@ class Api:
         params = {
             "avid": aid,
             "cid": cid,
-            "qn": 80,
+            "qn": qn,
             "otype": "json",
-            "fnval": 0,
-            "fourk": 0,
+            "fnval": 3,
+            #  "fourk": 0,
             #  "platform": "html5",
         }
 

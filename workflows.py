@@ -35,17 +35,17 @@ class Common:
         progress = xbmcgui.DialogProgress()
         progress.create('', 'loading video')
 
-        video = videos[index]
+        if prevPage:
+            index -= 1
 
-        # debug
-        #  xbmcgui.Dialog().textviewer('', '\n'.join(['{}: {}'.format(k, v) for k, v in video.items()]), usemono=True)
+        video = videos[index]
 
         videoDetail = Api.videoDetail(video)
 
         if not videoDetail:
             raise Exception('no resp detail')
 
-        url = Api.videoHtml5Url(videoDetail)
+        url = Api.videoHtml5Url(videoDetail, JsonFile("settings.json").load().get('defaultQuality', 32))
 
         if not url:
             raise Exception('no resp playurl')
@@ -127,7 +127,7 @@ class Common:
         return ('select', index)
 
     @staticmethod
-    def selectListPaged(getSelections: Callable[[int], List[Any]], getEntryTxt: Callable[[Any], str], title: str, initPage=1):
+    def selectListPaged(getSelections: Callable[[int], List[Any]], getEntryTxt: Callable[[Any], str], title: str, initPage=1, numPages=None):
         curPage = initPage
         needsUpdate = True
         preselect = -1
@@ -147,7 +147,7 @@ class Common:
 
             ret, arg = Common.selectList(selectionLabels, title=title,
                                          prevPage=curPage > 1,
-                                         nextPage=curPage < 10,
+                                         nextPage=curPage < 10 if numPages is None else curPage < numPages,
                                          preselect=preselect)
             if ret == 'select':
                 return ("select", selections[cast(int, arg)])
@@ -284,6 +284,60 @@ class SearchUser:
             ret = Common.videoSelectionListPaged(lambda page: Api.getUserVideos(user, page), "Videos from {}".format(getUserLabel(user)))
 
         return 'fin'
+
+
+class DefaultVideoQuality:
+    @staticmethod
+    def start():
+        def getQns():
+            return [6, 16, 32, 64, 80]
+
+        def getQnLabel(qn: int):
+            return {
+                6: '240P',
+                16: '360P',
+                32: '480P',
+                64: '720P',
+                80: '1080P',
+            }.get(qn, '错误')
+
+        ret, qn = Common.selectListPaged(lambda _: getQns(), getQnLabel, 'Video Qualities', numPages=1)
+        if ret == 'fin':
+            return 'again'
+        elif ret == 'select':
+            JsonFile('settings.json').writeFile({"defaultQuality": qn})
+            return 'again'
+
+        return 'fin'
+
+
+class JsonFile(object):
+    filename: str
+    path: str
+
+    def __init__(self, filename: str):
+        self.filename = filename
+        self.path = self.filePath()
+
+    def filePath(self):
+        profile = xbmc.translatePath(xbmcaddon.Addon().getAddonInfo('profile'))  # .decode("utf-8")
+        return os.path.join(profile, self.filename)
+
+    def load(self) -> dict:
+        if not os.path.exists(self.path):
+            return {}
+        f = open(self.path, 'r')
+        r = json.load(f)
+        f.close()
+        return r
+
+    def writeFile(self, data: dict):
+        dir = os.path.dirname(self.path)
+        if not os.path.isdir(dir):
+            os.mkdir(dir)
+        f = open(self.path, "w")
+        json.dump(data, f)
+        f.close()
 
 
 def playVideo(path):

@@ -18,6 +18,10 @@ opts = [
         "label": "Recent History",
         "workflow": workflows.RecentHistory.start
     },
+    {
+        "label": "Default Quality",
+        "workflow": workflows.DefaultVideoQuality.start
+    },
 ]
 
 
