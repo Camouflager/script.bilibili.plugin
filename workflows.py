@@ -343,14 +343,19 @@ class JsonFile(object):
 def playVideo(path):
     player = xbmc.Player()
 
-    HEADER = 'User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.122 Safari/537.36' \
-        + '&Referer=https://www.bilibili.com' \
-        + '&Range=bytes=0-' \
-        + '&Connection=keep-alive'\
-        + '&Origin=https://www.bilibili.com' \
-        + '&Accept-Encoding=gzip, deflate, br'
+    HEADERS = [
+        ('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.122 Safari/537.36'),
+        ('Referer', 'https://www.bilibili.com'),
+        ('Origin', 'https://www.bilibili.com'),
+        ('Accept-Encoding', 'gzip, deflate, br'),
+    ]
 
-    player.play(path + '|' + HEADER)
+    header = '&'.join([(h + '=' + s) for (h, s) in HEADERS])
+
+    #  xbmc.log('path: ' + path, xbmc.LOGERROR)
+    #  xbmc.log('header: ' + header, xbmc.LOGERROR)
+
+    player.play(path + '|' + header)
 
     #  player.play(path)
 
