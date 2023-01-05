@@ -191,6 +191,7 @@ class DefaultSearch:
 
 class RecentHistory:
     _history: List[WebSearchVideo] = None  # type: ignore
+    _newEntries = 0
 
     @staticmethod
     def filePath():
@@ -225,6 +226,14 @@ class RecentHistory:
         MAX_LEN = 20
         if len(history) > MAX_LEN:
             history.pop()
+
+        N = 4
+
+        cls = RecentHistory
+        cls._newEntries += 1
+        if cls._newEntries > N:
+            cls.writeFile()
+            cls._newEntries = 0
 
     @staticmethod
     def getHistory() -> List[WebSearchVideo]:
