@@ -387,14 +387,17 @@ class TopHits:
     def start():
         historyVideos = RecentHistory.getHistory()
 
+        today = time.time() // 3600 // 24
+
         def sortFn(v: WebSearchVideo):
             dates = v.get("__dates__", [])
-            dates = [x for x in dates if x >= time.time() // 3600 // 24 - 30]
+            dates = [x for x in dates if x >= today - 30]
             v["__dates__"] = dates
             return len(dates)
 
-        historyVideos.copy().sort(key=sortFn, reverse=True)
-        historyVideos = historyVideos[:20]
+        historyVideos = historyVideos.copy()
+        historyVideos.sort(key=sortFn, reverse=True)
+        # xbmcgui.Dialog().textviewer("", "\n".join(["{} {}".format(sortFn(x), x["title"]) for x in historyVideos]))
 
         i = 0
         while True:
