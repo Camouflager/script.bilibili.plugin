@@ -18,9 +18,20 @@ class WebSearchVideo(TypedDict):
     aid: str
     author: str
 
+    _part: int
 
-class VideoDetail(dict):
-    pass
+
+class VideoPageItem(TypedDict):
+    cid: int
+    page: int
+    part: str
+
+
+class VideoDetail(TypedDict):
+    pages: List[VideoPageItem]
+    aid: str
+
+    _part: int
 
 
 class WebSearchUser(TypedDict):
@@ -88,7 +99,8 @@ class Api:
     @staticmethod
     def videoHtml5Url(videoDetail: VideoDetail, qn: int = 32):
         aid = videoDetail['aid']
-        cid = videoDetail['pages'][0]['cid']
+        part = videoDetail.get('_part', 0)
+        cid = videoDetail['pages'][part]['cid']
 
         # get download url
         playurl = API['video']['info']['playurl']['url']

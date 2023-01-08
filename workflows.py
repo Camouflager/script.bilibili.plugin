@@ -9,31 +9,51 @@ import xbmcaddon
 
 class Common:
     @staticmethod
-    def selectVideo(videos: List[WebSearchVideo], title="Search Result", prevPage: str = None, nextPage: str = None, initSelect=None, onSelect: Callable[[int], None] = None):  # type: ignore
+    def selectVideo(
+        videos: List[WebSearchVideo],
+        title="Search Result",
+        prevPage: str = None,
+        nextPage: str = None,
+        initSelect=None,
+        onSelect: Callable[[int], None] = None,
+    ):  # type:ignore
         def markup(txt: str) -> str:
-            return txt.replace('<em class="keyword">', '[COLOR red]').replace('</em>', '[/COLOR]').replace('&amp;', '&')
+            return (
+                txt.replace('<em class="keyword">', "[COLOR red]")
+                .replace("</em>", "[/COLOR]")
+                .replace("&amp;", "&")
+            )
 
         selections: List[str] = []
         selections.extend([prevPage])
-        selections.extend(["({}){}".format(x['author'], markup(x['title'])) if 'author' in x else markup(x['title']) for x in videos])
+        selections.extend(
+            [
+                "({}){}".format(x["author"], markup(x["title"]))
+                if "author" in x
+                else markup(x["title"])
+                for x in videos
+            ]
+        )
         selections.extend([nextPage])
         selections = [x for x in selections if x is not None]
 
-        index = xbmcgui.Dialog().select(title, selections, preselect=initSelect if initSelect is not None else -1)  # type:ignore
+        index = xbmcgui.Dialog().select(
+            title, selections, preselect=initSelect if initSelect is not None else -1
+        )  # type:ignore
 
         if index < 0:
             return "fin"
 
         if selections[index] == prevPage:
-            return 'prevPage'
+            return "prevPage"
         elif selections[index] == nextPage:
-            return 'nextPage'
+            return "nextPage"
 
         if onSelect is not None:
             onSelect(index)
 
         progress = xbmcgui.DialogProgress()
-        progress.create('', 'loading video')
+        progress.create("", "loading video")
 
         if prevPage:
             index -= 1
@@ -42,23 +62,52 @@ class Common:
 
         videoDetail = Api.videoDetail(video)
 
-        if not videoDetail:
-            raise Exception('no resp detail')
+        if len(videoDetail["pages"]) > 1 and not "_part" in video:
+            try:
 
-        url = Api.videoHtml5Url(videoDetail, JsonFile("settings.json").load().get('defaultQuality', 32))
+                def getVideosInPage():
+                    def pageItemToWebSearchedVideo(pageItem: VideoPageItem):
+                        r = video.copy()
+                        r["title"] = pageItem["part"]
+                        r["_part"] = pageItem["page"] - 1
+                        return r
+
+                    return [pageItemToWebSearchedVideo(x) for x in videoDetail["pages"]]
+
+                Common.videoSelectionListPaged(
+                    lambda _: getVideosInPage(), title=markup(video["title"])
+                )
+            except:
+                pass
+            return "again"
+
+        if not videoDetail:
+            raise Exception("no resp detail")
+
+        videoDetail["_part"] = video["_part"]  # hack
+
+        url = Api.videoHtml5Url(
+            videoDetail, JsonFile("settings.json").load().get("defaultQuality", 32)
+        )
 
         if not url:
-            raise Exception('no resp playurl')
+            raise Exception("no resp playurl")
 
         progress.close()
 
-        RecentHistory.addHistoryEntry(video)
+        newHistoryEntry = video.copy()  # hack
+        del newHistoryEntry["_part"]
+        RecentHistory.addHistoryEntry(newHistoryEntry)
         playVideo(url)
 
         return "again"
 
     @staticmethod
-    def videoSelectionListPaged(getVideos: Callable[[int], List[WebSearchVideo]], title="Search Result", initPage=1):
+    def videoSelectionListPaged(
+        getVideos: Callable[[int], List[WebSearchVideo]],
+        title="Search Result",
+        initPage=1,
+    ):
         curPage = initPage
         needsUpdate = True
         preselect = None
@@ -76,36 +125,44 @@ class Common:
                 needsUpdate = False
 
             if videos is None:
-                raise Exception('getVideos failed')
+                raise Exception("getVideos failed")
 
-            ret = Common.selectVideo(videos, title=title,
-                                     prevPage=None if curPage == 1 else '<< Last Page',  # type:ignore
-                                     nextPage=None if curPage >= 10 or len(videos) == 0 else '>> Next Page',  # type:ignore
-                                     initSelect=preselect, onSelect=resetPreselect)
+            ret = Common.selectVideo(
+                videos,
+                title=title,
+                prevPage=None if curPage == 1 else "<< Last Page",  # type:ignore
+                nextPage=None
+                if curPage >= 10 or len(videos) == 0
+                else ">> Next Page",  # type:ignore
+                initSelect=preselect,
+                onSelect=resetPreselect,
+            )
 
-            if ret == 'prevPage':
+            if ret == "prevPage":
                 curPage -= 1
                 needsUpdate = True
                 preselect = None
-            elif ret == 'nextPage':
+            elif ret == "nextPage":
                 curPage += 1
                 needsUpdate = True
                 preselect = None
 
             i += 1
 
-            if ret == 'fin':
+            if ret == "fin":
                 break
 
-        return 'fin'
+        return "fin"
 
     # new selections
     @staticmethod
-    def selectList(selections: List[str], title, prevPage=False, nextPage=False, preselect=-1):
+    def selectList(
+        selections: List[str], title, prevPage=False, nextPage=False, preselect=-1
+    ):
         sels = []
 
-        prevPageTxt = '<< Last Page...'
-        nextPageTxt = '>> Next Page...'
+        prevPageTxt = "<< Last Page..."
+        nextPageTxt = ">> Next Page..."
 
         if prevPage:
             sels.extend([prevPageTxt])
@@ -120,14 +177,20 @@ class Common:
         if index < 0:
             return ("fin", None)
         if sels[index] == prevPageTxt:
-            return ('prevPage', None)
+            return ("prevPage", None)
         elif sels[index] == nextPageTxt:
-            return ('nextPage', None)
+            return ("nextPage", None)
 
-        return ('select', index)
+        return ("select", index)
 
     @staticmethod
-    def selectListPaged(getSelections: Callable[[int], List[Any]], getEntryTxt: Callable[[Any], str], title: str, initPage=1, numPages=None):
+    def selectListPaged(
+        getSelections: Callable[[int], List[Any]],
+        getEntryTxt: Callable[[Any], str],
+        title: str,
+        initPage=1,
+        numPages=None,
+    ):
         curPage = initPage
         needsUpdate = True
         preselect = -1
@@ -143,17 +206,20 @@ class Common:
                 needsUpdate = False
 
             if selections is None:
-                raise Exception('getVideos failed')
+                raise Exception("getVideos failed")
 
-            ret, arg = Common.selectList(selectionLabels, title=title,
-                                         prevPage=curPage > 1,
-                                         nextPage=curPage < 10 if numPages is None else curPage < numPages,
-                                         preselect=preselect)
-            if ret == 'select':
+            ret, arg = Common.selectList(
+                selectionLabels,
+                title=title,
+                prevPage=curPage > 1,
+                nextPage=curPage < 10 if numPages is None else curPage < numPages,
+                preselect=preselect,
+            )
+            if ret == "select":
                 return ("select", selections[cast(int, arg)])
 
-            if ret == 'prevPage' or ret == 'nextPage':
-                if ret == 'prevPage':
+            if ret == "prevPage" or ret == "nextPage":
+                if ret == "prevPage":
                     curPage -= 1
                 else:
                     curPage += 1
@@ -162,23 +228,23 @@ class Common:
 
             i += 1
 
-            if ret == 'fin':
+            if ret == "fin":
                 break
 
-        return ('fin', None)
+        return ("fin", None)
 
 
 class DefaultSearch:
     @staticmethod
     def start():
-        query = xbmcgui.Dialog().input('Default Search').strip()
+        query = xbmcgui.Dialog().input("Default Search").strip()
 
         if len(query) == 0:
             return "fin"
 
         def updateVideos(page=1):
             progress = xbmcgui.DialogProgress()
-            progress.create('searching: ' + query)
+            progress.create("searching: " + query)
 
             videos = Api.webSearchVideos(query, page)
 
@@ -186,7 +252,9 @@ class DefaultSearch:
 
             return videos
 
-        return Common.videoSelectionListPaged(cast(Callable[[int], List[WebSearchVideo]], updateVideos))  # force cast
+        return Common.videoSelectionListPaged(
+            cast(Callable[[int], List[WebSearchVideo]], updateVideos)
+        )  # force cast
 
 
 class RecentHistory:
@@ -195,8 +263,10 @@ class RecentHistory:
 
     @staticmethod
     def filePath():
-        profile = xbmc.translatePath(xbmcaddon.Addon().getAddonInfo('profile'))  # .decode("utf-8")
-        return os.path.join(profile, 'history.json')
+        profile = xbmc.translatePath(
+            xbmcaddon.Addon().getAddonInfo("profile")
+        )  # .decode("utf-8")
+        return os.path.join(profile, "history.json")
 
     @staticmethod
     def writeFile():
@@ -208,7 +278,17 @@ class RecentHistory:
         if not os.path.isdir(dir):
             os.mkdir(dir)
         f = open(path, "w")
-        json.dump([{k: v for k, v in x.items() if k in list(WebSearchVideo.__annotations__.keys())} for x in RecentHistory._history], f)
+        json.dump(
+            [
+                {
+                    k: v
+                    for k, v in x.items()
+                    if k in list(WebSearchVideo.__annotations__.keys())
+                }
+                for x in RecentHistory._history
+            ],
+            f,
+        )
         f.close()
 
     @staticmethod
@@ -218,7 +298,7 @@ class RecentHistory:
 
         history = RecentHistory._history
         for v in history:
-            if v['bvid'] == video['bvid']:
+            if v["bvid"] == video["bvid"]:
                 history.remove(v)
                 break
         history.insert(0, video)
@@ -255,19 +335,19 @@ class RecentHistory:
         i = 0
         while True:
             if len(historyVideos) == 0:
-                xbmcgui.Dialog().ok('', 'Empty History')
-                return 'fin'
+                xbmcgui.Dialog().ok("", "Empty History")
+                return "fin"
 
             ret = Common.selectVideo(historyVideos, title="History")
             i += 1
-            if ret == 'fin':
+            if ret == "fin":
                 return ret
 
 
 class SearchUser:
     @staticmethod
     def start():
-        query = xbmcgui.Dialog().input('Search User').strip()
+        query = xbmcgui.Dialog().input("Search User").strip()
 
         if len(query) == 0:
             return "fin"
@@ -275,24 +355,27 @@ class SearchUser:
         def getUsers(page: int):
             res = Api.webSearchUsers(query, page)
             if not res:
-                raise UserException('web search users failed')
+                raise UserException("web search users failed")
             return res
 
         def getUserLabel(user: WebSearchUser):
-            uname = user['uname'].replace('\n', '\\n')
-            usign = user['usign'].replace('\n', '\\n').strip()
+            uname = user["uname"].replace("\n", "\\n")
+            usign = user["usign"].replace("\n", "\\n").strip()
             if len(usign) > 0:
                 return "{} ({})".format(uname, usign)
             return uname
 
-        ret, user = Common.selectListPaged(getUsers, getUserLabel, 'Search Result')
-        if ret == 'fin':
-            return 'again'
-        elif ret == 'select':
+        ret, user = Common.selectListPaged(getUsers, getUserLabel, "Search Result")
+        if ret == "fin":
+            return "again"
+        elif ret == "select":
             user = cast(WebSearchUser, user)
-            ret = Common.videoSelectionListPaged(lambda page: Api.getUserVideos(user, page), "Videos from {}".format(getUserLabel(user)))
+            ret = Common.videoSelectionListPaged(
+                lambda page: Api.getUserVideos(user, page),
+                "Videos from {}".format(getUserLabel(user)),
+            )
 
-        return 'fin'
+        return "fin"
 
 
 class DefaultVideoQuality:
@@ -303,21 +386,23 @@ class DefaultVideoQuality:
 
         def getQnLabel(qn: int):
             return {
-                6: '240P',
-                16: '360P',
-                32: '480P',
-                64: '720P',
-                80: '1080P',
-            }.get(qn, '错误')
+                6: "240P",
+                16: "360P",
+                32: "480P",
+                64: "720P",
+                80: "1080P",
+            }.get(qn, "错误")
 
-        ret, qn = Common.selectListPaged(lambda _: getQns(), getQnLabel, 'Video Qualities', numPages=1)
-        if ret == 'fin':
-            return 'again'
-        elif ret == 'select':
-            JsonFile('settings.json').writeFile({"defaultQuality": qn})
-            return 'again'
+        ret, qn = Common.selectListPaged(
+            lambda _: getQns(), getQnLabel, "Video Qualities", numPages=1
+        )
+        if ret == "fin":
+            return "again"
+        elif ret == "select":
+            JsonFile("settings.json").writeFile({"defaultQuality": qn})
+            return "again"
 
-        return 'fin'
+        return "fin"
 
 
 class JsonFile(object):
@@ -329,13 +414,15 @@ class JsonFile(object):
         self.path = self.filePath()
 
     def filePath(self):
-        profile = xbmc.translatePath(xbmcaddon.Addon().getAddonInfo('profile'))  # .decode("utf-8")
+        profile = xbmc.translatePath(
+            xbmcaddon.Addon().getAddonInfo("profile")
+        )  # .decode("utf-8")
         return os.path.join(profile, self.filename)
 
     def load(self) -> dict:
         if not os.path.exists(self.path):
             return {}
-        f = open(self.path, 'r')
+        f = open(self.path, "r")
         r = json.load(f)
         f.close()
         return r
@@ -353,18 +440,21 @@ def playVideo(path):
     player = xbmc.Player()
 
     HEADERS = [
-        ('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.122 Safari/537.36'),
-        ('Referer', 'https://www.bilibili.com'),
-        ('Origin', 'https://www.bilibili.com'),
-        ('Accept-Encoding', 'gzip, deflate, br'),
+        (
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.122 Safari/537.36",
+        ),
+        ("Referer", "https://www.bilibili.com"),
+        ("Origin", "https://www.bilibili.com"),
+        ("Accept-Encoding", "gzip, deflate, br"),
     ]
 
-    header = '&'.join([(h + '=' + s) for (h, s) in HEADERS])
+    header = "&".join([(h + "=" + s) for (h, s) in HEADERS])
 
     #  xbmc.log('path: ' + path, xbmc.LOGERROR)
     #  xbmc.log('header: ' + header, xbmc.LOGERROR)
 
-    player.play(path + '|' + header)
+    player.play(path + "|" + header)
 
     #  player.play(path)
 
@@ -372,7 +462,7 @@ def playVideo(path):
         xbmc.sleep(200)
         pass
 
-    xbmc.log('start playing', xbmc.LOGINFO)
+    xbmc.log("start playing", xbmc.LOGINFO)
 
     # block until video is stopped
     while player.isPlaying():
@@ -381,4 +471,4 @@ def playVideo(path):
 
     xbmc.sleep(10)
 
-    xbmc.log('finish playing', xbmc.LOGINFO)
+    xbmc.log("finish playing", xbmc.LOGINFO)
