@@ -66,7 +66,7 @@ class Common:
 
                     return [pageItemToWebSearchedVideo(x) for x in videoDetail["pages"]]
 
-                Common.videoSelectionListPaged(lambda _: getVideosInPage(), title=markup(video["title"]))
+                Common.videoSelectionListPaged(lambda p: getVideosInPage() if p == 1 else [], title=markup(video["title"]))
             except:
                 pass
             return "again"
