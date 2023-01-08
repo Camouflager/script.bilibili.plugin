@@ -19,6 +19,7 @@ class WebSearchVideo(TypedDict):
     author: str
 
     _part: int
+    __dates__: List[int]
 
 
 class VideoPageItem(TypedDict):

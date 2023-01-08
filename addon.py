@@ -15,6 +15,10 @@ opts = [
         "workflow": workflows.SearchUser.start
     },
     {
+        "label": "Top Hits",
+        "workflow": workflows.TopHits.start
+    },
+    {
         "label": "Recent History",
         "workflow": workflows.RecentHistory.start
     },

@@ -5,6 +5,7 @@ import xbmc
 import json
 import os
 import xbmcaddon
+import time
 
 
 class Common:
@@ -14,32 +15,23 @@ class Common:
         title="Search Result",
         prevPage: str = None,
         nextPage: str = None,
-        initSelect=None,
+        initSelect: int = None,
         onSelect: Callable[[int], None] = None,
     ):  # type:ignore
         def markup(txt: str) -> str:
-            return (
-                txt.replace('<em class="keyword">', "[COLOR red]")
-                .replace("</em>", "[/COLOR]")
-                .replace("&amp;", "&")
-            )
+            return txt.replace('<em class="keyword">', "[COLOR red]").replace("</em>", "[/COLOR]").replace("&amp;", "&")
+
+        def videoName(x: WebSearchVideo):
+            title = markup(x.get("part_title", x["title"]))
+            return "({}){}".format(x["author"], title) if "author" in x else title
 
         selections: List[str] = []
         selections.extend([prevPage])
-        selections.extend(
-            [
-                "({}){}".format(x["author"], markup(x["title"]))
-                if "author" in x
-                else markup(x["title"])
-                for x in videos
-            ]
-        )
+        selections.extend([videoName(x) for x in videos])
         selections.extend([nextPage])
         selections = [x for x in selections if x is not None]
 
-        index = xbmcgui.Dialog().select(
-            title, selections, preselect=initSelect if initSelect is not None else -1
-        )  # type:ignore
+        index = xbmcgui.Dialog().select(title, selections, preselect=initSelect if initSelect is not None else -1)  # type:ignore
 
         if index < 0:
             return "fin"
@@ -68,15 +60,13 @@ class Common:
                 def getVideosInPage():
                     def pageItemToWebSearchedVideo(pageItem: VideoPageItem):
                         r = video.copy()
-                        r["title"] = pageItem["part"]
+                        r["part_title"] = pageItem["part"]
                         r["_part"] = pageItem["page"] - 1
                         return r
 
                     return [pageItemToWebSearchedVideo(x) for x in videoDetail["pages"]]
 
-                Common.videoSelectionListPaged(
-                    lambda _: getVideosInPage(), title=markup(video["title"])
-                )
+                Common.videoSelectionListPaged(lambda _: getVideosInPage(), title=markup(video["title"]))
             except:
                 pass
             return "again"
@@ -84,11 +74,9 @@ class Common:
         if not videoDetail:
             raise Exception("no resp detail")
 
-        videoDetail["_part"] = video["_part"]  # hack
+        videoDetail["_part"] = video.get("_part", 0)  # hack
 
-        url = Api.videoHtml5Url(
-            videoDetail, JsonFile("settings.json").load().get("defaultQuality", 32)
-        )
+        url = Api.videoHtml5Url(videoDetail, JsonFile("settings.json").load().get("defaultQuality", 32))
 
         if not url:
             raise Exception("no resp playurl")
@@ -96,7 +84,8 @@ class Common:
         progress.close()
 
         newHistoryEntry = video.copy()  # hack
-        del newHistoryEntry["_part"]
+        if "_part" in newHistoryEntry:
+            del newHistoryEntry["_part"]
         RecentHistory.addHistoryEntry(newHistoryEntry)
         playVideo(url)
 
@@ -131,9 +120,7 @@ class Common:
                 videos,
                 title=title,
                 prevPage=None if curPage == 1 else "<< Last Page",  # type:ignore
-                nextPage=None
-                if curPage >= 10 or len(videos) == 0
-                else ">> Next Page",  # type:ignore
+                nextPage=None if curPage >= 10 or len(videos) == 0 else ">> Next Page",  # type:ignore
                 initSelect=preselect,
                 onSelect=resetPreselect,
             )
@@ -156,9 +143,7 @@ class Common:
 
     # new selections
     @staticmethod
-    def selectList(
-        selections: List[str], title, prevPage=False, nextPage=False, preselect=-1
-    ):
+    def selectList(selections: List[str], title, prevPage=False, nextPage=False, preselect=-1):
         sels = []
 
         prevPageTxt = "<< Last Page..."
@@ -252,9 +237,7 @@ class DefaultSearch:
 
             return videos
 
-        return Common.videoSelectionListPaged(
-            cast(Callable[[int], List[WebSearchVideo]], updateVideos)
-        )  # force cast
+        return Common.videoSelectionListPaged(cast(Callable[[int], List[WebSearchVideo]], updateVideos))  # force cast
 
 
 class RecentHistory:
@@ -263,9 +246,7 @@ class RecentHistory:
 
     @staticmethod
     def filePath():
-        profile = xbmc.translatePath(
-            xbmcaddon.Addon().getAddonInfo("profile")
-        )  # .decode("utf-8")
+        profile = xbmc.translatePath(xbmcaddon.Addon().getAddonInfo("profile"))  # .decode("utf-8")
         return os.path.join(profile, "history.json")
 
     @staticmethod
@@ -279,14 +260,7 @@ class RecentHistory:
             os.mkdir(dir)
         f = open(path, "w")
         json.dump(
-            [
-                {
-                    k: v
-                    for k, v in x.items()
-                    if k in list(WebSearchVideo.__annotations__.keys())
-                }
-                for x in RecentHistory._history
-            ],
+            [{k: v for k, v in x.items() if k in list(WebSearchVideo.__annotations__.keys())} for x in RecentHistory._history],
             f,
         )
         f.close()
@@ -297,13 +271,18 @@ class RecentHistory:
             RecentHistory._history = RecentHistory.getHistory()
 
         history = RecentHistory._history
+        dates = []
         for v in history:
             if v["bvid"] == video["bvid"]:
                 history.remove(v)
+                dates = v.get("__dates__", [])
                 break
+
+        dates.append(time.time() // 3600 // 24)
+        video["__dates__"] = dates
         history.insert(0, video)
 
-        MAX_LEN = 20
+        MAX_LEN = 100
         if len(history) > MAX_LEN:
             history.pop()
 
@@ -393,9 +372,7 @@ class DefaultVideoQuality:
                 80: "1080P",
             }.get(qn, "错误")
 
-        ret, qn = Common.selectListPaged(
-            lambda _: getQns(), getQnLabel, "Video Qualities", numPages=1
-        )
+        ret, qn = Common.selectListPaged(lambda _: getQns(), getQnLabel, "Video Qualities", numPages=1)
         if ret == "fin":
             return "again"
         elif ret == "select":
@@ -403,6 +380,32 @@ class DefaultVideoQuality:
             return "again"
 
         return "fin"
+
+
+class TopHits:
+    @staticmethod
+    def start():
+        historyVideos = RecentHistory.getHistory()
+
+        def sortFn(v: WebSearchVideo):
+            dates = v.get("__dates__", [])
+            dates = [x for x in dates if x >= time.time() // 3600 // 24 - 30]
+            v["__dates__"] = dates
+            return len(dates)
+
+        historyVideos.copy().sort(key=sortFn, reverse=True)
+        historyVideos = historyVideos[:20]
+
+        i = 0
+        while True:
+            if len(historyVideos) == 0:
+                xbmcgui.Dialog().ok("", "Empty")
+                return "fin"
+
+            ret = Common.selectVideo(historyVideos, title="Top Hits")
+            i += 1
+            if ret == "fin":
+                return ret
 
 
 class JsonFile(object):
@@ -414,9 +417,7 @@ class JsonFile(object):
         self.path = self.filePath()
 
     def filePath(self):
-        profile = xbmc.translatePath(
-            xbmcaddon.Addon().getAddonInfo("profile")
-        )  # .decode("utf-8")
+        profile = xbmc.translatePath(xbmcaddon.Addon().getAddonInfo("profile"))  # .decode("utf-8")
         return os.path.join(profile, self.filename)
 
     def load(self) -> dict:
@@ -440,10 +441,7 @@ def playVideo(path):
     player = xbmc.Player()
 
     HEADERS = [
-        (
-            "User-Agent",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.122 Safari/537.36",
-        ),
+        ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.122 Safari/537.36"),
         ("Referer", "https://www.bilibili.com"),
         ("Origin", "https://www.bilibili.com"),
         ("Accept-Encoding", "gzip, deflate, br"),
